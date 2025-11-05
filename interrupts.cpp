@@ -50,8 +50,18 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
             ///////////////////////////////////////////////////////////////////////////////////////////
             //Add your FORK output here
+            execution_log.push_back({current_time, 1, "switch to kernel mode"});
+            execution_log.push_back({current_time + 1, 10, "context saved"});
+            execution_log.push_back({current_time + 11, 1, "find vector 2 in memory position 0x0004"});
+            execution_log.push_back({current_time + 12, 1, "load address 0X0695 into the PC"});
+            execution_log.push_back({current_time + 13, trace.duration, "cloning the PCB"});
+            current_time += 13 + trace.duration;
 
-
+            // After cloning PCB
+            write_system_status(system_status_log, current_time + 1, trace, parent, child); 
+            execution_log.push_back({current_time + 1, 0, "scheduler called"});
+            execution_log.push_back({current_time + 1, 1, "IRET"});
+            current_time += 1;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
 
