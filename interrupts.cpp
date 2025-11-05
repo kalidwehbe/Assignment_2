@@ -101,6 +101,31 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
             ///////////////////////////////////////////////////////////////////////////////////////////
             //With the child's trace, run the child (HINT: think recursion)
+            std::vector<TraceLine> child_trace;
+            int i = current_index + 1;
+            
+            // Find IF_CHILD section
+            while (i < trace_lines.size() && trace_lines[i].command != "IF_CHILD") i++;
+            if (i < trace_lines.size() && trace_lines[i].command == "IF_CHILD") {
+                i++;
+                while (i < trace_lines.size() && trace_lines[i].command != "IF_PARENT" && trace_lines[i].command != "ENDIF") {
+                    child_trace.push_back(trace_lines[i]);
+                    i++;
+                }
+            }
+
+            // Create child PCB (clone parent)
+            PCB child = pcb;
+            child.pid = next_pid++;
+            child.state = "running";
+            allocate_memory(child, child.size);
+            
+            // Run child trace recursively
+            simulate_trace(child_trace, child, external_files, execution_log, system_status_log);
+            
+            // Free child’s partition after finish
+            free_partition_of(child);
+
 
 
 
@@ -114,8 +139,24 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
             ///////////////////////////////////////////////////////////////////////////////////////////
             //Add your EXEC output here
-
-
+            execution_log.push_back({current_time, 1, "switch to kernel mode"});
+            execution_log.push_back({current_time + 1, 10, "context saved"});
+            execution_log.push_back({current_time + 11, 1, "find vector 3 in memory position 0x0006"});
+            execution_log.push_back({current_time + 12, 1, "load address 0X042B into the PC"});
+            
+            // Simulate loader time: 15 ms per MB
+            int program_size = trace.duration; // e.g., 50 for 10 MB program
+            int load_time = (program_size / 5) * 15; // Adjust to your scaling if needed
+            execution_log.push_back({current_time + 13, program_size, "Program is " + std::to_string(program_size / 5) + " Mb large"});
+            execution_log.push_back({current_time + 13 + program_size, load_time, "loading program into memory"});
+            execution_log.push_back({current_time + 13 + program_size + load_time, 3, "marking partition as occupied"});
+            execution_log.push_back({current_time + 13 + program_size + load_time + 3, 6, "updating PCB"});
+            execution_log.push_back({current_time + 13 + program_size + load_time + 9, 0, "scheduler called"});
+            execution_log.push_back({current_time + 13 + program_size + load_time + 9, 1, "IRET"});
+            current_time += 13 + program_size + load_time + 10;
+            
+            // Write system snapshot
+            write_system_status(system_status_log, current_time, trace, pcb, pcb);
 
             ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -129,9 +170,15 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             }
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
-
-
+           //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
+            std::string exec_program = trace.arg1; // program1 or program2
+            std::vector<TraceLine> exec_trace = parse_trace(exec_program + ".txt");
+            
+            // Run recursively using the same PCB (process image replaced)
+            simulate_trace(exec_trace, pcb, external_files, execution_log, system_status_log);
+            
+            // After EXEC, terminate this trace — old code is gone
+            return;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -166,6 +213,43 @@ int main(int argc, char** argv) {
     std::vector<PCB> wait_queue;
 
     /******************ADD YOUR VARIABLES HERE*************************/
+    // Simulated memory: six fixed partitions (in MB)
+    struct Partition {
+        unsigned int number;
+        unsigned int size;
+        std::string code; // "free", "init", or program name
+    };
+
+    std::vector<Partition> memory = {
+        {1, 40, "free"},
+        {2, 25, "free"},
+        {3, 15, "free"},
+        {4, 10, "free"},
+        {5, 8,  "free"},
+        {6, 2,  "free"}
+    };
+
+    // Assign the init process (PID 0) to partition 6
+    memory[5].code = "init";
+    current.partition_number = 6;
+
+    // Initialize process ID counter
+    int next_pid = 1;
+
+    // Random number generator for timing (1–10 ms)
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::uniform_int_distribution<int> rand_ms(1, 10);
+
+    // Execution log (time, duration, description)
+    std::vector<std::tuple<int, int, std::string>> execution_log;
+
+    // System status snapshots (to be written after FORK and EXEC)
+    std::vector<std::string> system_status_log;
+
+    // Global simulation clock
+    int current_time = 0;
+
 
 
     /******************************************************************/
