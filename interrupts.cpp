@@ -22,12 +22,6 @@ std::tuple<std::string, std::string, int> simulate_trace(
     std::vector<external_file> external_files,
     PCB current,
     std::vector<PCB> wait_queue
-);
-
-std::tuple<std::string, std::string, int> simulate_trace(
-    std::vector<std::string> trace_file, int time, std::vector<std::string> vectors,
-    std::vector<int> delays, std::vector<external_file> external_files,
-    PCB current, std::vector<PCB> wait_queue
 ) {
     std::string execution = "";
     std::string system_status = "";
@@ -64,25 +58,26 @@ std::tuple<std::string, std::string, int> simulate_trace(
             execution += intr;
             current_time = time;
 
-            // Create child PCB
             int child_pid = current.PID + 1 + wait_queue.size();
             PCB child(child_pid, current.PID, current.program_name, current.size, current.partition_number - 1);
-            child.state = "running";
-            current.state = "waiting";
 
-            // Add parent to wait queue
-            wait_queue.push_back(current);
+            wait_queue.push_back(current); // parent goes to waiting queue
 
-            // Update system_status
+            // system_status
             system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
             system_status += "+------------------------------------------------------+\n";
             system_status += "| PID |program name |partition number | size | state |\n";
             system_status += "+------------------------------------------------------+\n";
-            system_status += "| " + std::to_string(child.PID) + " | " + child.program_name + " | " + std::to_string(child.partition_number) + " | " + std::to_string(child.size) + " | " + child.state + " |\n";
-            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | " + current.state + " |\n";
+
+            system_status += "| " + std::to_string(child.PID) + " | " + child.program_name + " | " +
+                             std::to_string(child.partition_number) + " | " + std::to_string(child.size) + " | running |\n";
+
+            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " +
+                             std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | waiting |\n";
+
             system_status += "+------------------------------------------------------+\n";
 
-            // Handle child trace (recursive)
+            // Child trace collection
             std::vector<std::string> child_trace;
             bool skip = true;
             bool exec_flag = false;
@@ -94,7 +89,6 @@ std::tuple<std::string, std::string, int> simulate_trace(
                 else if (_activity == "IF_PARENT") { skip = true; parent_index = j; if (exec_flag) break; }
                 else if (skip && _activity == "ENDIF") { skip = false; continue; }
                 else if (!skip && _activity == "EXEC") { skip = true; child_trace.push_back(trace_file[j]); exec_flag = true; }
-
                 if (!skip) child_trace.push_back(trace_file[j]);
             }
             i = parent_index;
@@ -109,20 +103,23 @@ std::tuple<std::string, std::string, int> simulate_trace(
             execution += intr;
             current_time = time;
 
-            // Update current process with exec info
             current.program_name = program_name;
             current.size = get_size(program_name, external_files);
             allocate_memory(&current);
 
-            // Update system_status
             system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
             system_status += "+------------------------------------------------------+\n";
             system_status += "| PID |program name |partition number | size | state |\n";
             system_status += "+------------------------------------------------------+\n";
-            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | " + current.state + " |\n";
+
+            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " +
+                             std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | running |\n";
+
             for (auto &p : wait_queue) {
-                system_status += "| " + std::to_string(p.PID) + " | " + p.program_name + " | " + std::to_string(p.partition_number) + " | " + std::to_string(p.size) + " | " + p.state + " |\n";
+                system_status += "| " + std::to_string(p.PID) + " | " + p.program_name + " | " +
+                                 std::to_string(p.partition_number) + " | " + std::to_string(p.size) + " | waiting |\n";
             }
+
             system_status += "+------------------------------------------------------+\n";
 
             std::ifstream exec_trace_file(program_name + ".txt");
@@ -137,7 +134,7 @@ std::tuple<std::string, std::string, int> simulate_trace(
                 current_time = new_time;
             }
 
-            break; // exec replaces process, stop parent's current trace
+            break;
         }
     }
 
@@ -167,6 +164,4 @@ int main(int argc, char** argv) {
     write_output(system_status, "ouputs/system_status.txt");
 
     return 0;
-}
-
 }
