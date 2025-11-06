@@ -49,7 +49,20 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your FORK output here
+        execution += std::to_string(current_time) + ", 1, switch to kernel mode\n";
+        current_time += 1;
+        execution += std::to_string(current_time) + ", 10, context saved\n";
+        current_time += 10;
+        execution += std::to_string(current_time) + ", 1, find vector 2 in memory position 0x0004\n";
+        current_time += 1;
+        execution += std::to_string(current_time) + ", 1, load address 0x0695 into the PC\n";
+        current_time += 1;
+        execution += std::to_string(current_time) + ", 13, cloning the PCB\n";
+        current_time += 13;
+        execution += std::to_string(current_time) + ", 0, scheduler called\n";
+        execution += std::to_string(current_time) + ", 1, IRET\n";
+        current_time += 1;
+        
 
 
 
@@ -92,6 +105,12 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             ///////////////////////////////////////////////////////////////////////////////////////////
             //With the child's trace, run the child (HINT: think recursion)
 
+            auto [child_execution, child_system_status, child_time] = simulate_trace(
+            child_trace, current_time, vectors, delays, external_files, current, wait_queue
+            );
+            execution += child_execution;
+            system_status += child_system_status;
+            current_time = child_time;
 
 
             ///////////////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +122,24 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your EXEC output here
+        execution += std::to_string(current_time) + ", 1, switch to kernel mode\n";
+        current_time += 1;
+        execution += std::to_string(current_time) + ", 10, context saved\n";
+        current_time += 10;
+        execution += std::to_string(current_time) + ", 1, find vector 3 in memory position 0x0006\n";
+        current_time += 1;
+        execution += std::to_string(current_time) + ", 1, load address 0x042B into the PC\n";
+        current_time += 1;
+        execution += std::to_string(current_time) + ", " + std::to_string(duration_intr * 3) + ", Program is " + std::to_string(duration_intr) + " Mb large\n";
+        current_time += duration_intr * 15; // Example: 15 ms per MB
+        execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
+        current_time += 3;
+        execution += std::to_string(current_time) + ", 6, updating PCB\n";
+        current_time += 6;
+        execution += std::to_string(current_time) + ", 0, scheduler called\n";
+        execution += std::to_string(current_time) + ", 1, IRET\n";
+        current_time += 1;
+
 
 
 
@@ -119,7 +155,13 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             }
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
+            auto [exec_execution, exec_system_status, exec_time] = simulate_trace(
+                exec_traces, current_time, vectors, delays, external_files, current, wait_queue
+            );
+            execution += exec_execution;
+            system_status += exec_system_status;
+            current_time = exec_time;
+
 
 
 
