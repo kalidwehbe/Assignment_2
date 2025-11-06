@@ -139,8 +139,8 @@ int main(int argc, char** argv) {
 
     input_file.close();
 
-    write_output(execution, "execution_test_2");
-    write_output(system_status, "system_status_2");
+    write_output(execution, "execution.txt");
+    write_output(system_status, "system_status.txt");
 
     return 0;
 }
