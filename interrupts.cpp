@@ -49,19 +49,41 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-        execution += std::to_string(current_time) + ", 1, switch to kernel mode\n";
-        current_time += 1;
-        execution += std::to_string(current_time) + ", 10, context saved\n";
-        current_time += 10;
-        execution += std::to_string(current_time) + ", 1, find vector 2 in memory position 0x0004\n";
-        current_time += 1;
-        execution += std::to_string(current_time) + ", 1, load address 0x0695 into the PC\n";
-        current_time += 1;
-        execution += std::to_string(current_time) + ", 13, cloning the PCB\n";
-        current_time += 13;
-        execution += std::to_string(current_time) + ", 0, scheduler called\n";
-        execution += std::to_string(current_time) + ", 1, IRET\n";
-        current_time += 1;
+                   // Log interrupt steps (already done above)
+            execution += std::to_string(current_time) + ", 1, switch to kernel mode\n";
+            current_time += 1;
+            execution += std::to_string(current_time) + ", 10, context saved\n";
+            current_time += 10;
+            execution += std::to_string(current_time) + ", 1, find vector 2 in memory position 0x0004\n";
+            current_time += 1;
+            execution += std::to_string(current_time) + ", 1, load address 0x0695 into the PC\n";
+            current_time += 1;
+            execution += std::to_string(current_time) + ", 13, cloning the PCB\n";
+            current_time += 13;
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
+            
+            // Create child process
+            PCB child = current;
+            child.pid += 1;
+            child.program_name = current.program_name;
+            child.partition_number = current.partition_number - 1; // just a mock change for variety
+            child.state = "running";
+            current.state = "waiting";
+            
+            // Append system status
+            std::stringstream ss;
+            ss << "time: " << current_time << "; current trace: " << trace << "\n";
+            ss << "+------------------------------------------------------+\n";
+            ss << "| PID | program name | partition number | size | state |\n";
+            ss << "+------------------------------------------------------+\n";
+            ss << "| " << child.pid << " | " << child.program_name << " | " << child.partition_number
+               << " | " << child.size << " | running |\n";
+            ss << "| " << current.pid << " | " << current.program_name << " | " << current.partition_number
+               << " | " << current.size << " | waiting |\n";
+            ss << "+------------------------------------------------------+\n";
+            system_status += ss.str();
         
 
 
@@ -122,28 +144,42 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-        execution += std::to_string(current_time) + ", 1, switch to kernel mode\n";
-        current_time += 1;
-        execution += std::to_string(current_time) + ", 10, context saved\n";
-        current_time += 10;
-        execution += std::to_string(current_time) + ", 1, find vector 3 in memory position 0x0006\n";
-        current_time += 1;
-        execution += std::to_string(current_time) + ", 1, load address 0x042B into the PC\n";
-        current_time += 1;
-        execution += std::to_string(current_time) + ", " + std::to_string(duration_intr * 3) + ", Program is " + std::to_string(duration_intr) + " Mb large\n";
-        current_time += duration_intr * 15; // Example: 15 ms per MB
-        execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
-        current_time += 3;
-        execution += std::to_string(current_time) + ", 6, updating PCB\n";
-        current_time += 6;
-        execution += std::to_string(current_time) + ", 0, scheduler called\n";
-        execution += std::to_string(current_time) + ", 1, IRET\n";
-        current_time += 1;
-
-
-
-
+            execution += std::to_string(current_time) + ", 1, switch to kernel mode\n";
+            current_time += 1;
+            execution += std::to_string(current_time) + ", 10, context saved\n";
+            current_time += 10;
+            execution += std::to_string(current_time) + ", 1, find vector 3 in memory position 0x0006\n";
+            current_time += 1;
+            execution += std::to_string(current_time) + ", 1, load address 0x042B into the PC\n";
+            current_time += 1;
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr * 3)
+                        + ", Program is " + std::to_string(duration_intr) + " Mb large\n";
+            current_time += duration_intr * 15;
+            execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
+            current_time += 3;
+            execution += std::to_string(current_time) + ", 6, updating PCB\n";
+            current_time += 6;
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
+            
+            // Update PCB to reflect new program
+            current.program_name = program_name;
+            current.size = duration_intr;
+            current.state = "running";
+            
+            // Update system status output
+            std::stringstream ss;
+            ss << "time: " << current_time << "; current trace: " << trace << "\n";
+            ss << "+------------------------------------------------------+\n";
+            ss << "| PID | program name | partition number | size | state |\n";
+            ss << "+------------------------------------------------------+\n";
+            ss << "| " << current.pid << " | " << current.program_name << " | "
+               << current.partition_number << " | " << current.size << " | running |\n";
+            ss << "+------------------------------------------------------+\n";
+            system_status += ss.str();
             ///////////////////////////////////////////////////////////////////////////////////////////
+
 
 
             std::ifstream exec_trace_file(program_name + ".txt");
