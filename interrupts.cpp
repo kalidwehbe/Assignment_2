@@ -8,53 +8,53 @@
 #include "interrupts.hpp"
 
 std::tuple<std::string, std::string, int> simulate_trace(
-    std::vector<std::string> trace_file,
-    int time,
-    std::vector<std::string> vectors,
-    std::vector<int> delays,
-    std::vector<external_file> external_files,
-    PCB current,
-    std::vector<PCB> wait_queue
-) {
-
-    std::string execution = "";      //!< string to accumulate the execution output
-    std::string system_status = "";  //!< string to accumulate the system status output
+    std::vector<std::string> trace_file, int time,
+    std::vector<std::string> vectors, std::vector<int> delays,
+    std::vector<external_file> external_files, PCB current,
+    std::vector<PCB> wait_queue)
+{
+    std::string execution = "";
+    std::string system_status = "";
     int current_time = time;
 
     for (size_t i = 0; i < trace_file.size(); i++) {
         auto trace = trace_file[i];
         auto [activity, duration_intr, program_name] = parse_trace(trace);
 
+        // ---------- CPU ----------
         if (activity == "CPU") {
             execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", CPU Burst\n";
             current_time += duration_intr;
+        }
 
-        } else if (activity == "SYSCALL") {
+        // ---------- SYSCALL ----------
+        else if (activity == "SYSCALL") {
             auto [intr, t] = intr_boilerplate(current_time, duration_intr, 10, vectors);
             execution += intr;
             current_time = t;
 
             execution += std::to_string(current_time) + ", " + std::to_string(delays[duration_intr]) + ", SYSCALL ISR\n";
             current_time += delays[duration_intr];
-
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
+        }
 
-        } else if (activity == "END_IO") {
+        // ---------- END_IO ----------
+        else if (activity == "END_IO") {
             auto [intr, t] = intr_boilerplate(current_time, duration_intr, 10, vectors);
             execution += intr;
             current_time = t;
 
             execution += std::to_string(current_time) + ", " + std::to_string(delays[duration_intr]) + ", ENDIO ISR\n";
             current_time += delays[duration_intr];
-
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
+        }
 
-        } else if (activity == "FORK") {
-            // ----------------- FORK ISR -----------------
+        // ---------- FORK ----------
+        else if (activity == "FORK") {
             execution += std::to_string(current_time) + ", 1, switch to kernel mode //fork encountered, "
-                         + std::to_string(wait_queue.size() + 1) + " processes in PCB\n";
+                      + std::to_string(wait_queue.size() + 1) + " processes in PCB\n";
             current_time += 1;
 
             execution += std::to_string(current_time) + ", 10, context saved\n";
@@ -73,104 +73,97 @@ std::tuple<std::string, std::string, int> simulate_trace(
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
 
-            // Save parent PCB and create child PCB
+            // Create child + push parent to wait queue
             PCB parent = current;
             PCB child(wait_queue.size() + 1, current.PID, current.program_name, current.size, current.partition_number);
-            wait_queue.push_back(parent); // parent goes to wait queue
-            current = child;              // child runs immediately
+            wait_queue.push_back(parent);
+            current = child;
 
-            // Log child system status
+            // Log FORK PCB snapshot
             system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
             system_status += print_PCB(current, wait_queue);
 
-            // ----------------- Collect child trace -----------------
+            // Extract child trace between IF_CHILD and IF_PARENT
             std::vector<std::string> child_trace;
-            bool skip = true;
-            bool exec_flag = false;
-            int parent_index = 0;
+            size_t parent_index = i;
+            bool child_mode = false;
 
-            for (size_t j = i; j < trace_file.size(); j++) {
-                auto [_activity, _duration, _pn] = parse_trace(trace_file[j]);
-                if (skip && _activity == "IF_CHILD") { skip = false; continue; }
-                else if (_activity == "IF_PARENT") { skip = true; parent_index = j; if (exec_flag) break; }
-                else if (skip && _activity == "ENDIF") { skip = false; continue; }
-                else if (!skip && _activity == "EXEC") { skip = true; child_trace.push_back(trace_file[j]); exec_flag = true; }
-
-                if (!skip) child_trace.push_back(trace_file[j]);
+            for (size_t j = i + 1; j < trace_file.size(); j++) {
+                auto [a, _, __] = parse_trace(trace_file[j]);
+                if (a == "IF_CHILD") { child_mode = true; continue; }
+                if (a == "IF_PARENT") { child_mode = false; parent_index = j; continue; }
+                if (a == "ENDIF") { break; }
+                if (child_mode) child_trace.push_back(trace_file[j]);
             }
-            // Move parent loop index to after the IF_PARENT block so parent resumes there
-            i = parent_index;
 
-            // ----------------- Recursive child execution -----------------
+            // Recursive simulate for child
             auto [child_exec, child_status, child_time] =
                 simulate_trace(child_trace, current_time, vectors, delays, external_files, current, wait_queue);
-
             execution += child_exec;
             system_status += child_status;
             current_time = child_time;
 
-            // Restore parent PCB and continue loop normally
+            // Restore parent
             current = parent;
 
-        } else if (activity == "EXEC") {
-            // ----------------- EXEC ISR -----------------
+            // Continue parent AFTER child’s block
+            i = parent_index;
+        }
+
+        // ---------- EXEC ----------
+        else if (activity == "EXEC") {
             execution += std::to_string(current_time) + ", 1, switch to kernel mode //exec encountered\n";
             current_time += 1;
-
             execution += std::to_string(current_time) + ", 10, context saved\n";
             current_time += 10;
 
             unsigned int prog_size = get_size(program_name, external_files);
             current.program_name = program_name;
             current.size = prog_size;
+            allocate_memory(&current);
 
-            if (!allocate_memory(&current)) {
-                std::cerr << "ERROR! Memory allocation for EXEC failed!\n";
-            }
-
-            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", Program is " + std::to_string(prog_size) + " Mb large\n";
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr)
+                      + ", Program is " + std::to_string(prog_size) + " Mb large\n";
             current_time += duration_intr;
 
-            execution += std::to_string(current_time) + ", " + std::to_string(prog_size * 15) + ", loading program into memory\n";
+            execution += std::to_string(current_time) + ", " + std::to_string(prog_size * 15)
+                      + ", loading program into memory\n";
             current_time += prog_size * 15;
-
             execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
             current_time += 3;
-
             execution += std::to_string(current_time) + ", 6, updating PCB\n";
             current_time += 6;
-
             execution += std::to_string(current_time) + ", 0, scheduler called\n";
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
 
-            // Log system status
-            system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
+            // Print EXEC PCB snapshot
+            system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC "
+                          + program_name + ", " + std::to_string(duration_intr) + "\n";
             system_status += print_PCB(current, wait_queue);
 
-            // ----------------- EXEC Recursive Child Execution -----------------
+            // Load program trace and recurse
             std::ifstream exec_trace_file(program_name + ".txt");
-            std::vector<std::string> exec_traces;
-            std::string line;
-            while (std::getline(exec_trace_file, line)) exec_traces.push_back(line);
+            if (exec_trace_file.is_open()) {
+                std::vector<std::string> exec_traces;
+                std::string line;
+                while (std::getline(exec_trace_file, line))
+                    exec_traces.push_back(line);
+                exec_trace_file.close();
 
-            // Save current PCB for child recursion
-            PCB parent = current;
-            auto [exec_exec, exec_status, exec_time] =
-                simulate_trace(exec_traces, current_time, vectors, delays, external_files, current, wait_queue);
-
-            execution += exec_exec;
-            system_status += exec_status;
-            current_time = exec_time;
-
-            // Restore parent PCB
-            current = parent;
+                PCB parent = current;
+                auto [exec_exec, exec_status, exec_time] =
+                    simulate_trace(exec_traces, current_time, vectors, delays, external_files, current, wait_queue);
+                execution += exec_exec;
+                system_status += exec_status;
+                current_time = exec_time;
+                current = parent;
+            }
         }
-        // continue for-loop naturally (no break here)
-    } // end for
+    }
 
     return {execution, system_status, current_time};
-} // end simulate_trace
+}
 
 
 int main(int argc, char** argv) {
