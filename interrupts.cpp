@@ -94,7 +94,6 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             // Restore parent and set running
             current = wait_queue.back();
             wait_queue.pop_back();
-            current.state = "running";
             
             // Log parent resuming
             system_status += "time: " + std::to_string(current_time) + "; current trace: RESUME PARENT\n";
