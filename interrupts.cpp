@@ -7,15 +7,6 @@
 
 #include "interrupts.hpp"
 
-/**
- *
- * @file interrupts.cpp
- * @author Sasisekhar Govind
- *
- */
-
-#include <interrupts.hpp>
-
 std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string> trace_file, int time, std::vector<std::string> vectors, std::vector<int> delays, std::vector<external_file> external_files, PCB current, std::vector<PCB> wait_queue) {
 
     std::string execution = "";      //!< string to accumulate the execution output
