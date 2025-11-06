@@ -49,7 +49,12 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your FORK output here
+             PCB child(current.PID + 1, current.PID, current.program_name, current.size, -1);
+            allocate_memory(&child);
+
+            wait_queue.push_back(current); // parent goes to waiting
+            system_status += "time: " + std::to_string(current_time) + "; current trace: " + trace + " //fork cloned parent\n";
+            system_status += print_PCB(child, wait_queue);
 
 
 
@@ -90,7 +95,12 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             i = parent_index;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the child's trace, run the child (HINT: think recursion)
+            if(!child_trace.empty()) {
+                auto [child_exec, child_status, child_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, child, wait_queue);
+                execution += child_exec;
+                system_status += child_status;
+                current_time = child_time;
+            }
 
 
 
@@ -103,8 +113,12 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your EXEC output here
+            current.program_name = program_name;
+            current.size = duration_intr;
+            allocate_memory(&current);
 
+            system_status += "time: " + std::to_string(current_time) + "; current trace: " + trace + " //exec updated process\n";
+            system_status += print_PCB(current, wait_queue);
 
 
             ///////////////////////////////////////////////////////////////////////////////////////////
@@ -119,10 +133,12 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             }
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
-
-
-
+            if(!exec_traces.empty()) {
+                auto [exec_exec, exec_status, exec_time] = simulate_trace(exec_traces, current_time, vectors, delays, external_files, current, wait_queue);
+                execution += exec_exec;
+                system_status += exec_status;
+                current_time = exec_time;
+            }
             ///////////////////////////////////////////////////////////////////////////////////////////
 
             break; //Why is this important? (answer in report)
