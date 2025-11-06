@@ -186,12 +186,6 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             }
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            // Run child or external program recursively
-            // Read external trace file of program
-            std::ifstream exec_trace_file(program_name + ".txt");
-            std::vector<std::string> exec_traces;
-            std::string line;
-            while (std::getline(exec_trace_file, line)) exec_traces.push_back(line);
             
             // Run external program trace recursively (child executes independently)
             auto [exec_exec, exec_status, exec_time] = simulate_trace(
