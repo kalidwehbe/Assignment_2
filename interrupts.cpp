@@ -45,15 +45,20 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
         } else if(activity == "FORK") {
             // ----------------- FORK ISR -----------------
-           // ----------------- FORK ISR -----------------
             execution += std::to_string(current_time) + ", 1, switch to kernel mode //fork encountered, "
                          + std::to_string(wait_queue.size() + 1) + " processes in PCB\n";
-            execution += std::to_string(current_time + 1) + ", 10, context saved\n";
-            current_time += 11;
+            current_time += 1;
+            
+            execution += std::to_string(current_time) + ", 10, context saved\n";
+            current_time += 10;
             
             execution += std::to_string(current_time) + ", 1, find vector 2 in memory position 0x0004\n";
-            execution += std::to_string(current_time + 1) + ", 1, load address 0X0695 into the PC\n";
-            execution += std::to_string(current_time + 2) + ", " + std::to_string(duration_intr) + ", cloning the PCB\n";
+            current_time += 1;
+            
+            execution += std::to_string(current_time) + ", 1, load address 0X0695 into the PC\n";
+            current_time += 1;
+            
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", cloning the PCB\n";
             current_time += duration_intr;
             
             execution += std::to_string(current_time) + ", 0, scheduler called\n";
@@ -68,6 +73,7 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             // Log child system status
             system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
             system_status += print_PCB(current, wait_queue);
+
             // ----------------- Collect child trace -----------------
             std::vector<std::string> child_trace;
             bool skip = true;
@@ -91,7 +97,7 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             system_status += child_status;
             current_time = child_time;
             
-            // Restore parent and set running
+            // Restore parent
             current = wait_queue.back();
             wait_queue.pop_back();
             
@@ -101,9 +107,12 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
         } else if(activity == "EXEC") {
             // ----------------- EXEC ISR -----------------
+                      
             execution += std::to_string(current_time) + ", 1, switch to kernel mode //exec encountered\n";
-            execution += std::to_string(current_time + 1) + ", 10, context saved\n";
-            current_time += 11;
+            current_time += 1;
+            
+            execution += std::to_string(current_time) + ", 10, context saved\n";
+            current_time += 10;
             
             unsigned int prog_size = get_size(program_name, external_files);
             current.program_name = program_name;
@@ -132,6 +141,7 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             // Log system status
             system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
             system_status += print_PCB(current, wait_queue);
+
 
 
             // ----------------- EXEC Recursive Child Execution -----------------
