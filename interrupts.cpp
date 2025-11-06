@@ -228,6 +228,17 @@ int main(int argc, char** argv) {
     std::vector<PCB> wait_queue;
 
     /******************ADD YOUR VARIABLES HERE*************************/
+    // Tracks current CPU time for proper timestamping
+    int current_time = 0;
+    
+    // Queue for waiting processes (forked but not currently running)
+    std::vector<PCB> wait_queue;
+    
+    // Stores the lines of the trace file for processing
+    std::vector<std::string> trace_file;
+    
+    // Optional: for debugging, can store each PCB snapshot separately
+    // std::vector<std::string> pcb_snapshots;
 
 
     /******************************************************************/
