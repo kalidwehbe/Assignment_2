@@ -1,194 +1,160 @@
-/**
- *
- * @file interrupts.cpp
- * @author Sasisekhar Govind
- *
- */
+#include <tuple>
+#include <vector>
+#include <string>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include "interrupts.hpp"
 
-#include<interrupts.hpp>
+// Helper function to parse a trace line
+std::tuple<std::string, int, std::string> parse_trace(const std::string& line) {
+    std::stringstream ss(line);
+    std::string activity, duration_str, arg;
+    std::getline(ss, activity, ',');
+    std::getline(ss, duration_str, ',');
+    std::getline(ss, arg);
+    int duration = std::stoi(duration_str);
+    // Trim whitespace
+    activity.erase(0, activity.find_first_not_of(" \t"));
+    arg.erase(0, arg.find_first_not_of(" \t"));
+    return {activity, duration, arg};
+}
 
-std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string> trace_file, int time, std::vector<std::string> vectors, std::vector<int> delays, std::vector<external_file> external_files, PCB current, std::vector<PCB> wait_queue) {
-
-    std::string trace;      //!< string to store single line of trace file
-    std::string execution = "";  //!< string to accumulate the execution output
-    std::string system_status = "";  //!< string to accumulate the system status output
+// Recursive simulation function
+std::tuple<std::string, std::string, int> simulate_trace(
+    const std::vector<std::string>& trace_file, 
+    int time, 
+    const std::vector<std::string>& vectors, 
+    const std::vector<int>& delays, 
+    const std::vector<external_file>& external_files, 
+    PCB current, 
+    std::vector<PCB> wait_queue)
+{
+    std::string execution = "";
+    std::string system_status = "";
     int current_time = time;
 
-    //parse each line of the input trace file. 'for' loop to keep track of indices.
-    for(size_t i = 0; i < trace_file.size(); i++) {
-        auto trace = trace_file[i];
+    for (size_t i = 0; i < trace_file.size(); i++) {
+        auto trace_line = trace_file[i];
+        auto [activity, duration, program_name] = parse_trace(trace_line);
 
-        auto [activity, duration_intr, program_name] = parse_trace(trace);
-
-        if(activity == "CPU") { //As per Assignment 1
-            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", CPU Burst\n";
-            current_time += duration_intr;
-        } else if(activity == "SYSCALL") { //As per Assignment 1
-            auto [intr, time] = intr_boilerplate(current_time, duration_intr, 10, vectors);
+        if (activity == "CPU") {
+            execution += std::to_string(current_time) + ", " + std::to_string(duration) + ", CPU Burst\n";
+            current_time += duration;
+        }
+        else if (activity == "SYSCALL" || activity == "END_IO") {
+            auto [intr, new_time] = intr_boilerplate(current_time, duration, 10, vectors);
             execution += intr;
-            current_time = time;
-
-            execution += std::to_string(current_time) + ", " + std::to_string(delays[duration_intr]) + ", SYSCALL ISR (ADD STEPS HERE)\n";
-            current_time += delays[duration_intr];
-
-            execution +=  std::to_string(current_time) + ", 1, IRET\n";
+            current_time = new_time;
+            execution += std::to_string(current_time) + ", " + std::to_string(delays[duration]) + ", " + activity + " ISR\n";
+            current_time += delays[duration];
+            execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
-        } else if(activity == "END_IO") {
-            auto [intr, time] = intr_boilerplate(current_time, duration_intr, 10, vectors);
-            current_time = time;
+        }
+        else if (activity == "FORK") {
+            // Run syscall
+            auto [intr, new_time] = intr_boilerplate(current_time, duration, 10, vectors);
             execution += intr;
+            current_time = new_time;
 
-            execution += std::to_string(current_time) + ", " + std::to_string(delays[duration_intr]) + ", ENDIO ISR(ADD STEPS HERE)\n";
-            current_time += delays[duration_intr];
+            // Log FORK ISR
+            execution += std::to_string(current_time) + ", " + std::to_string(duration) + ", cloning the PCB\n";
+            current_time += duration;
 
-            execution +=  std::to_string(current_time) + ", 1, IRET\n";
-            current_time += 1;
-        } else if(activity == "FORK") {
-            auto [intr, time] = intr_boilerplate(current_time, 2, 10, vectors);
-            execution += intr;
-            current_time = time;
+            // Snapshot system status
+            system_status += "time: " + std::to_string(current_time) + "; current trace: " + trace_line + "\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| PID | program name | partition number | size | state |\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| " + std::to_string(current.pid+1) + " | " + current.name + " | " + std::to_string(current.partition) + " | " + std::to_string(current.size) + " | running |\n";
+            system_status += "| " + std::to_string(current.pid) + " | " + current.name + " | " + std::to_string(current.partition) + " | " + std::to_string(current.size) + " | waiting |\n";
+            system_status += "+------------------------------------------------------+\n";
 
-            ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your FORK output here
-            execution_log.push_back({current_time, 1, "switch to kernel mode"});
-            execution_log.push_back({current_time + 1, 10, "context saved"});
-            execution_log.push_back({current_time + 11, 1, "find vector 2 in memory position 0x0004"});
-            execution_log.push_back({current_time + 12, 1, "load address 0X0695 into the PC"});
-            execution_log.push_back({current_time + 13, trace.duration, "cloning the PCB"});
-            current_time += 13 + trace.duration;
-
-            // After cloning PCB
-            write_system_status(system_status_log, current_time + 1, trace, parent, child); 
-            execution_log.push_back({current_time + 1, 0, "scheduler called"});
-            execution_log.push_back({current_time + 1, 1, "IRET"});
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+            execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
 
-            ///////////////////////////////////////////////////////////////////////////////////////////
-
-            //The following loop helps you do 2 things:
-            // * Collect the trace of the chile (and only the child, skip parent)
-            // * Get the index of where the parent is supposed to start executing from
+            // Collect child trace
             std::vector<std::string> child_trace;
+            size_t parent_index = i;
             bool skip = true;
             bool exec_flag = false;
-            int parent_index = 0;
 
-            for(size_t j = i; j < trace_file.size(); j++) {
-                auto [_activity, _duration, _pn] = parse_trace(trace_file[j]);
-                if(skip && _activity == "IF_CHILD") {
+            for (size_t j = i; j < trace_file.size(); j++) {
+                auto [act, dur, prog] = parse_trace(trace_file[j]);
+                if (skip && act == "IF_CHILD") {
                     skip = false;
                     continue;
-                } else if(_activity == "IF_PARENT"){
+                }
+                else if (act == "IF_PARENT") {
                     skip = true;
                     parent_index = j;
-                    if(exec_flag) {
-                        break;
-                    }
-                } else if(skip && _activity == "ENDIF") {
+                    if (exec_flag) break;
+                }
+                else if (skip && act == "ENDIF") {
                     skip = false;
                     continue;
-                } else if(!skip && _activity == "EXEC") {
+                }
+                else if (!skip && act == "EXEC") {
                     skip = true;
                     child_trace.push_back(trace_file[j]);
                     exec_flag = true;
                 }
-
-                if(!skip) {
-                    child_trace.push_back(trace_file[j]);
-                }
+                if (!skip) child_trace.push_back(trace_file[j]);
             }
             i = parent_index;
 
-            ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the child's trace, run the child (HINT: think recursion)
-            std::vector<TraceLine> child_trace;
-            int i = current_index + 1;
-            
-            // Find IF_CHILD section
-            while (i < trace_lines.size() && trace_lines[i].command != "IF_CHILD") i++;
-            if (i < trace_lines.size() && trace_lines[i].command == "IF_CHILD") {
-                i++;
-                while (i < trace_lines.size() && trace_lines[i].command != "IF_PARENT" && trace_lines[i].command != "ENDIF") {
-                    child_trace.push_back(trace_lines[i]);
-                    i++;
+            // Run child trace recursively
+            auto [child_exec, child_status, child_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, current, wait_queue);
+            execution += child_exec;
+            system_status += child_status;
+            current_time = child_time;
+        }
+        else if (activity == "EXEC") {
+            auto [intr, new_time] = intr_boilerplate(current_time, 3, 10, vectors);
+            execution += intr;
+            current_time = new_time;
+
+            // Find program size from external_files
+            int program_size = 0;
+            for (auto& f : external_files) {
+                if (f.name == program_name) {
+                    program_size = f.size;
+                    break;
                 }
             }
 
-            // Create child PCB (clone parent)
-            PCB child = pcb;
-            child.pid = next_pid++;
-            child.state = "running";
-            allocate_memory(child, child.size);
-            
-            // Run child trace recursively
-            simulate_trace(child_trace, child, external_files, execution_log, system_status_log);
-            
-            // Free child’s partition after finish
-            free_partition_of(child);
+            execution += std::to_string(current_time) + ", " + std::to_string(program_size) + ", Program is " + std::to_string(program_size) + " Mb large\n";
+            execution += std::to_string(current_time + program_size*15) + ", " + std::to_string(program_size*15) + ", loading program into memory\n";
+            current_time += program_size*15;
 
+            execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
+            current_time += 3;
+            execution += std::to_string(current_time) + ", 6, updating PCB\n";
+            current_time += 6;
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
 
-
-
-            ///////////////////////////////////////////////////////////////////////////////////////////
-
-
-        } else if(activity == "EXEC") {
-            auto [intr, time] = intr_boilerplate(current_time, 3, 10, vectors);
-            current_time = time;
-            execution += intr;
-
-            ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your EXEC output here
-            execution_log.push_back({current_time, 1, "switch to kernel mode"});
-            execution_log.push_back({current_time + 1, 10, "context saved"});
-            execution_log.push_back({current_time + 11, 1, "find vector 3 in memory position 0x0006"});
-            execution_log.push_back({current_time + 12, 1, "load address 0X042B into the PC"});
-            
-            // Simulate loader time: 15 ms per MB
-            int program_size = trace.duration; // e.g., 50 for 10 MB program
-            int load_time = (program_size / 5) * 15; // Adjust to your scaling if needed
-            execution_log.push_back({current_time + 13, program_size, "Program is " + std::to_string(program_size / 5) + " Mb large"});
-            execution_log.push_back({current_time + 13 + program_size, load_time, "loading program into memory"});
-            execution_log.push_back({current_time + 13 + program_size + load_time, 3, "marking partition as occupied"});
-            execution_log.push_back({current_time + 13 + program_size + load_time + 3, 6, "updating PCB"});
-            execution_log.push_back({current_time + 13 + program_size + load_time + 9, 0, "scheduler called"});
-            execution_log.push_back({current_time + 13 + program_size + load_time + 9, 1, "IRET"});
-            current_time += 13 + program_size + load_time + 10;
-            
-            // Write system snapshot
-            write_system_status(system_status_log, current_time, trace, pcb, pcb);
-
-            ///////////////////////////////////////////////////////////////////////////////////////////
-
-
-            std::ifstream exec_trace_file(program_name + ".txt");
-
+            // Read exec trace from file and run recursively
+            std::ifstream exec_file(program_name + ".txt");
             std::vector<std::string> exec_traces;
-            std::string exec_trace;
-            while(std::getline(exec_trace_file, exec_trace)) {
-                exec_traces.push_back(exec_trace);
-            }
+            std::string line;
+            while (std::getline(exec_file, line)) exec_traces.push_back(line);
+            exec_file.close();
 
-            ///////////////////////////////////////////////////////////////////////////////////////////
-           //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
-            std::string exec_program = trace.arg1; // program1 or program2
-            std::vector<TraceLine> exec_trace = parse_trace(exec_program + ".txt");
-            
-            // Run recursively using the same PCB (process image replaced)
-            simulate_trace(exec_trace, pcb, external_files, execution_log, system_status_log);
-            
-            // After EXEC, terminate this trace — old code is gone
-            return;
+            auto [exec_trace_str, exec_status_str, exec_time] = simulate_trace(exec_traces, current_time, vectors, delays, external_files, current, wait_queue);
+            execution += exec_trace_str;
+            system_status += exec_status_str;
+            current_time = exec_time;
 
-            ///////////////////////////////////////////////////////////////////////////////////////////
-
-            break; //Why is this important? (answer in report)
-
+            break; // stop parent after EXEC
         }
     }
 
     return {execution, system_status, current_time};
 }
+
 
 int main(int argc, char** argv) {
 
