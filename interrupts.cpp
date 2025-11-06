@@ -49,7 +49,24 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your FORK output here
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", cloning the PCB\n";
+            current_time += duration_intr;
+            
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+            current_time += 0;
+            
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
+            
+            // Create the child PCB
+            PCB child(wait_queue.size() + 1, current.PID, current.program_name, current.size, current.partition_number);
+            wait_queue.push_back(current); // parent goes to wait queue
+            current = child; // child runs immediately
+            
+            // Log system status
+            system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
+            system_status += print_PCB(current, wait_queue);
+
 
 
 
@@ -90,7 +107,15 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             i = parent_index;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the child's trace, run the child (HINT: think recursion)
+            auto [child_exec, child_status, child_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, current, wait_queue);
+            execution += child_exec;
+            system_status += child_status;
+            current_time = child_time;
+            
+            // After child finishes, restore parent
+            current = wait_queue.back();
+            wait_queue.pop_back();
+
 
 
 
@@ -103,7 +128,36 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your EXEC output here
+            unsigned int prog_size = get_size(program_name, external_files);
+            current.program_name = program_name;
+            current.size = prog_size;
+            
+            // Find memory partition
+            if(!allocate_memory(&current)) {
+                std::cerr << "ERROR! Memory allocation for EXEC failed!" << std::endl;
+            }
+            
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", Program is " + std::to_string(prog_size) + " Mb large\n";
+            current_time += duration_intr;
+            
+            execution += std::to_string(current_time) + ", " + std::to_string(prog_size * 15) + ", loading program into memory\n";
+            current_time += prog_size * 15;
+            
+            execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
+            current_time += 3;
+            
+            execution += std::to_string(current_time) + ", 6, updating PCB\n";
+            current_time += 6;
+            
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+            current_time += 0;
+            
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
+            
+            // Log system status
+            system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
+            system_status += print_PCB(current, wait_queue);
 
 
 
@@ -119,7 +173,11 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             }
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
+            auto [exec_exec, exec_status, exec_time] = simulate_trace(exec_traces, current_time, vectors, delays, external_files, current, wait_queue);
+            execution += exec_exec;
+            system_status += exec_status;
+            current_time = exec_time;
+
 
 
 
