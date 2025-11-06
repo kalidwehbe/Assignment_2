@@ -49,6 +49,7 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
+            // FORK ISR
             execution += std::to_string(current_time) + ", 1, switch to kernel mode //fork encountered, "
                          + std::to_string(wait_queue.size() + 1) + " processes in PCB\n";
             current_time += 1;
@@ -69,14 +70,13 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
             
-            // Create child PCB and put parent in wait queue
+            // Clone child PCB; parent stays in wait queue with its current memory/partition
             PCB child(current.PID + 1, current.PID, current.program_name, current.size, current.partition_number);
-            wait_queue.push_back(current);  // parent goes to wait queue
-            current = child;                // child runs immediately
+            wait_queue.push_back(current); // parent goes to wait queue
+            current = child;               // child runs immediately
             
-            // Snapshot system status
+            // Log system status
             system_status += print_PCB(current, wait_queue);
-
 
 
 
@@ -117,16 +117,17 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             i = parent_index;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            auto [child_exec, child_status, child_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, current, wait_queue);
+            auto [child_exec, child_status, child_time] = simulate_trace(
+                child_trace, current_time, vectors, delays, external_files, current, wait_queue
+            );
+            
             execution += child_exec;
             system_status += child_status;
             current_time = child_time;
             
-            // After child finishes, restore parent
+            // Restore parent after child finishes
             current = wait_queue.back();
             wait_queue.pop_back();
-
-
 
 
             ///////////////////////////////////////////////////////////////////////////////////////////
@@ -139,26 +140,21 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
             ///////////////////////////////////////////////////////////////////////////////////////////
             // EXEC ISR: load new program into memory and log
-            execution += std::to_string(current_time) + ", 1, switch to kernel mode //exec encountered\n";
-            current_time += 1;
-            
-            execution += std::to_string(current_time) + ", 10, context saved\n";
-            current_time += 10;
-            
-            execution += std::to_string(current_time) + ", 1, find vector 3 in memory position 0x0006\n";
-            current_time += 1;
-            
-            execution += std::to_string(current_time) + ", 1, load address 0X042B into the PC\n";
-            current_time += 1;
-            
             unsigned int prog_size = get_size(program_name, external_files);
             current.program_name = program_name;
             current.size = prog_size;
             
-            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", Program is " + std::to_string(prog_size) + " Mb large\n";
+            // Allocate memory for current process (child or parent)
+            if (!allocate_memory(&current)) {
+                std::cerr << "ERROR! Memory allocation for EXEC failed!" << std::endl;
+            }
+            
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) 
+                         + ", Program is " + std::to_string(prog_size) + " Mb large\n";
             current_time += duration_intr;
             
-            execution += std::to_string(current_time) + ", " + std::to_string(prog_size * 15) + ", loading program into memory\n";
+            execution += std::to_string(current_time) + ", " + std::to_string(prog_size * 15) 
+                         + ", loading program into memory\n";
             current_time += prog_size * 15;
             
             execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
@@ -171,8 +167,9 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
             
-            // Snapshot PCB
+            // Log system status for this process
             system_status += print_PCB(current, wait_queue);
+
             
             
 
@@ -190,22 +187,21 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
 
             ///////////////////////////////////////////////////////////////////////////////////////////
             // Run child or external program recursively
-            std::ifstream prog_file(program_name + ".txt");
-            std::vector<std::string> prog_traces;
+            // Read external trace file of program
+            std::ifstream exec_trace_file(program_name + ".txt");
+            std::vector<std::string> exec_traces;
             std::string line;
-            while (std::getline(prog_file, line)) prog_traces.push_back(line);
+            while (std::getline(exec_trace_file, line)) exec_traces.push_back(line);
             
-            auto [prog_exec, prog_status, prog_time] = simulate_trace(prog_traces, current_time, vectors, delays, external_files, current, wait_queue);
+            // Run external program trace recursively (child executes independently)
+            auto [exec_exec, exec_status, exec_time] = simulate_trace(
+                exec_traces, current_time, vectors, delays, external_files, current, wait_queue
+            );
             
-            execution += prog_exec;
-            system_status += prog_status;
-            current_time = prog_time;
-            
-            // After child finishes, restore parent if needed
-            if (!wait_queue.empty()) {
-                current = wait_queue.back();
-                wait_queue.pop_back();
-            }
+            execution += exec_exec;
+            system_status += exec_status;
+            current_time = exec_time;
+
 
 
 
