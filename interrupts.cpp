@@ -49,7 +49,19 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your FORK output here
+            static unsigned int next_pid = 1;  // global PID counter
+            PCB child(next_pid++, current.PID, current.program_name, current.size, current.partition_number);
+        
+            // Output system status
+            system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| PID |program name |partition number | size | state |\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| " + std::to_string(child.PID) + " | " + child.program_name + " | " 
+                             + std::to_string(child.partition_number) + " | " + std::to_string(child.size) + " | running |\n";
+            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " 
+                             + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | waiting |\n";
+            system_status += "+------------------------------------------------------+\n";
 
 
 
@@ -90,9 +102,10 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             i = parent_index;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the child's trace, run the child (HINT: think recursion)
-
-
+            auto [child_exec, child_status, child_time] = simulate_trace(child_trace, current_time, vectors, delays, external_files, child, wait_queue);
+            execution += child_exec;
+            system_status += child_status;
+            current_time = child_time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +116,16 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //Add your EXEC output here
+            current.program_name = program_name;
+
+            // Output system status
+            system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| PID |program name |partition number | size | state |\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " 
+                             + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | running |\n";
+            system_status += "+------------------------------------------------------+\n";
 
 
 
@@ -119,10 +141,10 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             }
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            //With the exec's trace (i.e. trace of external program), run the exec (HINT: think recursion)
-
-
-
+            auto [exec_output, exec_status, exec_time] = simulate_trace(exec_traces, current_time, vectors, delays, external_files, current, wait_queue);
+            execution += exec_output;
+            system_status += exec_status;
+            current_time = exec_time;
             ///////////////////////////////////////////////////////////////////////////////////////////
 
             break; //Why is this important? (answer in report)
