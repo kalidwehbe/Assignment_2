@@ -1,0 +1,26 @@
+0, 1, switch to kernel mode
+1, 10, context saved
+11, 1, find vector 2 in memory position 0x0004
+12, 1, load address 0X0695 into the PC
+13, 20, cloning the PCB
+33, 0, scheduler called
+33, 1, IRET
+34, 10, CPU Burst
+44, 1, switch to kernel mode
+45, 10, context saved
+55, 1, find vector 3 in memory position 0x0006
+56, 1, load address 0X042B into the PC
+57, 50, CPU Burst
+107, 1, switch to kernel mode
+108, 10, context saved
+118, 1, find vector 6 in memory position 0x000C
+119, 1, load address 0X0639 into the PC
+120, 265, SYSCALL ISR (ADD STEPS HERE)
+385, 1, IRET
+386, 15, CPU Burst
+401, 1, switch to kernel mode
+402, 10, context saved
+412, 1, find vector 6 in memory position 0x000C
+413, 1, load address 0X0639 into the PC
+414, 265, ENDIO ISR(ADD STEPS HERE)
+679, 1, IRET

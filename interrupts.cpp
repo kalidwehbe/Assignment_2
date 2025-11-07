@@ -1,13 +1,13 @@
 /**
  *
  * @file interrupts.cpp
- * @author Sasisekhar Govind
+ * @author Sasisekhar Govind,  Kalid Wehbe,  Bashar Saadi
  *
  */
 
 #include "interrupts.hpp"
 
-std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string> trace_file, int time, std::vector<std::string> vectors, std::vector<int> delays, std::vector<external_file> external_files, PCB current, std::vector<PCB> wait_queue) {
+std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string> trace_file, int time, std::vector<std::string> vectors, std::vector<int> delays, std::vector<external_file> external_files, PCB current, std::vector<PCB>& wait_queue) {
 
     std::string trace;      //!< string to store single line of trace file
     std::string execution = "";  //!< string to accumulate the execution output
@@ -49,19 +49,30 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
+            // FORK ISR: Cloning the PCB
             static unsigned int next_pid = 1;  // global PID counter
-            PCB child(next_pid++, current.PID, current.program_name, current.size, current.partition_number);
-        
-            // Output system status
+            PCB child(next_pid++, current.PID, current.program_name, current.size, -1);
+
+            // Log the cloning duration from trace
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", cloning the PCB\n";
+            current_time += duration_intr;
+
+            // Allocate memory for child process
+            if (!allocate_memory(&child)) {
+                std::cerr << "ERROR: Cannot allocate memory for child process PID " << child.PID << std::endl;
+            }
+
+            // Call scheduler
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
+
+            // Add parent to wait queue
+            wait_queue.push_back(current);
+            // Output system status after FORK
             system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
-            system_status += "+------------------------------------------------------+\n";
-            system_status += "| PID |program name |partition number | size | state |\n";
-            system_status += "+------------------------------------------------------+\n";
-            system_status += "| " + std::to_string(child.PID) + " | " + child.program_name + " | " 
-                             + std::to_string(child.partition_number) + " | " + std::to_string(child.size) + " | running |\n";
-            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " 
-                             + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | waiting |\n";
-            system_status += "+------------------------------------------------------+\n";
+            system_status += print_PCB(child, wait_queue);
 
 
 
@@ -147,7 +158,7 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = exec_time;
             ///////////////////////////////////////////////////////////////////////////////////////////
 
-            break; //Why is this important? (answer in report)
+            break; 
 
         }
     }
@@ -176,12 +187,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<PCB> wait_queue;
-
-    /******************ADD YOUR VARIABLES HERE*************************/
-
-
-    /******************************************************************/
-
+    
     //Converting the trace file into a vector of strings.
     std::vector<std::string> trace_file;
     std::string trace;
