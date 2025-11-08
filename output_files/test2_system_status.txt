@@ -1,33 +1,32 @@
-time: 31; current trace: FORK, 17
-+------------------------------------------------------+
-| PID |program name |partition number | size |   state |
-+------------------------------------------------------+
-|   1 |        init |               5 |    1 | running |
-|   0 |        init |               6 |    1 | waiting |
-+------------------------------------------------------+
-time: 44; current trace: EXEC program1, 16
+time: 30; current trace: FORK, 17
 +------------------------------------------------------+
 | PID |program name |partition number | size | state |
 +------------------------------------------------------+
-| 1 | program1 | 5 | 1 | running |
+| 1 | init | 6 | 1 | running |
+| 0 | init | 6 | 1 | waiting |
 +------------------------------------------------------+
-time: 73; current trace: FORK, 15
-+------------------------------------------------------+
-| PID |program name |partition number | size |   state |
-+------------------------------------------------------+
-|   2 |    program1 |               4 |    1 | running |
-|   0 |        init |               6 |    1 | waiting |
-|   1 |    program1 |               5 |    1 | waiting |
-+------------------------------------------------------+
-time: 86; current trace: EXEC program2, 33
+time: 219; current trace: EXEC program1, 16
 +------------------------------------------------------+
 | PID |program name |partition number | size | state |
 +------------------------------------------------------+
-| 2 | program2 | 4 | 1 | running |
+| 1 | program1 | 4 | 10 | running |
 +------------------------------------------------------+
-time: 152; current trace: EXEC program2, 33
+time: 248; current trace: FORK, 15
 +------------------------------------------------------+
 | PID |program name |partition number | size | state |
 +------------------------------------------------------+
-| 1 | program2 | 5 | 1 | running |
+| 2 | program1 | 4 | 10 | running |
+| 1 | program1 | 4 | 10 | waiting |
++------------------------------------------------------+
+time: 529; current trace: EXEC program2, 33
++------------------------------------------------------+
+| PID |program name |partition number | size | state |
++------------------------------------------------------+
+| 2 | program2 | 3 | 15 | running |
++------------------------------------------------------+
+time: 863; current trace: EXEC program2, 33
++------------------------------------------------------+
+| PID |program name |partition number | size | state |
++------------------------------------------------------+
+| 1 | program2 | 2 | 15 | running |
 +------------------------------------------------------+

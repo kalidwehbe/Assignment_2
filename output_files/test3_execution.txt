@@ -10,17 +10,23 @@
 45, 10, context saved
 55, 1, find vector 3 in memory position 0x0006
 56, 1, load address 0X042B into the PC
-57, 50, CPU Burst
-107, 1, switch to kernel mode
-108, 10, context saved
-118, 1, find vector 6 in memory position 0x000C
-119, 1, load address 0X0639 into the PC
-120, 265, SYSCALL ISR (ADD STEPS HERE)
-385, 1, IRET
-386, 15, CPU Burst
-401, 1, switch to kernel mode
-402, 10, context saved
-412, 1, find vector 6 in memory position 0x000C
-413, 1, load address 0X0639 into the PC
-414, 265, ENDIO ISR(ADD STEPS HERE)
-679, 1, IRET
+57, 60, Program is 20 Mb large
+117, 300, loading program into memory
+417, 3, marking partition as occupied
+420, 6, updating PCB
+426, 0, scheduler called
+426, 1, IRET
+427, 50, CPU Burst
+477, 1, switch to kernel mode
+478, 10, context saved
+488, 1, find vector 6 in memory position 0x000C
+489, 1, load address 0X0639 into the PC
+490, 265, SYSCALL ISR (ADD STEPS HERE)
+755, 1, IRET
+756, 15, CPU Burst
+771, 1, switch to kernel mode
+772, 10, context saved
+782, 1, find vector 6 in memory position 0x000C
+783, 1, load address 0X0639 into the PC
+784, 265, ENDIO ISR(ADD STEPS HERE)
+1049, 1, IRET

@@ -1,27 +1,26 @@
-time: 32; current trace: FORK, 18
-+------------------------------------------------------+
-| PID |program name |partition number | size |   state |
-+------------------------------------------------------+
-|   1 |        init |               5 |    1 | running |
-|   0 |        init |               6 |    1 | waiting |
-+------------------------------------------------------+
-time: 45; current trace: EXEC program1, 22
+time: 31; current trace: FORK, 18
 +------------------------------------------------------+
 | PID |program name |partition number | size | state |
 +------------------------------------------------------+
-| 1 | program1 | 5 | 1 | running |
+| 1 | init | 6 | 1 | running |
+| 0 | init | 6 | 1 | waiting |
 +------------------------------------------------------+
-time: 312; current trace: EXEC program2, 28
+time: 451; current trace: EXEC program1, 22
 +------------------------------------------------------+
 | PID |program name |partition number | size | state |
 +------------------------------------------------------+
-| 0 | program2 | 6 | 1 | running |
+| 1 | program1 | 2 | 25 | running |
 +------------------------------------------------------+
-time: 340; current trace: FORK, 14
+time: 936; current trace: EXEC program2, 28
 +------------------------------------------------------+
-| PID |program name |partition number | size |   state |
+| PID |program name |partition number | size | state |
 +------------------------------------------------------+
-|   2 |    program2 |               4 |    1 | running |
-|   0 |        init |               6 |    1 | waiting |
-|   0 |    program2 |               6 |    1 | waiting |
+| 0 | program2 | 3 | 12 | running |
++------------------------------------------------------+
+time: 964; current trace: FORK, 14
++------------------------------------------------------+
+| PID |program name |partition number | size | state |
++------------------------------------------------------+
+| 2 | program2 | 3 | 12 | running |
+| 0 | program2 | 3 | 12 | waiting |
 +------------------------------------------------------+

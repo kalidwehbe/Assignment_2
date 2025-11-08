@@ -7,7 +7,7 @@
 
 #include "interrupts.hpp"
 
-std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string> trace_file, int time, std::vector<std::string> vectors, std::vector<int> delays, std::vector<external_file> external_files, PCB current, std::vector<PCB>& wait_queue) {
+std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string> trace_file, int time, std::vector<std::string> vectors, std::vector<int> delays, std::vector<external_file> external_files, PCB current, std::vector<PCB> wait_queue) {
 
     std::string trace;      //!< string to store single line of trace file
     std::string execution = "";  //!< string to accumulate the execution output
@@ -49,30 +49,28 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             current_time = time;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
-            // FORK ISR: Cloning the PCB
-            static unsigned int next_pid = 1;  // global PID counter
-            PCB child(next_pid++, current.PID, current.program_name, current.size, -1);
-
-            // Log the cloning duration from trace
+            // FORK ISR implementation
             execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", cloning the PCB\n";
             current_time += duration_intr;
 
-            // Allocate memory for child process
-            if (!allocate_memory(&child)) {
-                std::cerr << "ERROR: Cannot allocate memory for child process PID " << child.PID << std::endl;
-            }
-
-            // Call scheduler
             execution += std::to_string(current_time) + ", 0, scheduler called\n";
 
             execution += std::to_string(current_time) + ", 1, IRET\n";
             current_time += 1;
 
-            // Add parent to wait queue
-            wait_queue.push_back(current);
-            // Output system status after FORK
-            system_status += "time: " + std::to_string(current_time) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
-            system_status += print_PCB(child, wait_queue);
+            static unsigned int next_pid = 1;  // global PID counter
+            PCB child(next_pid++, current.PID, current.program_name, current.size, current.partition_number);
+
+            // Output system status
+            system_status += "time: " + std::to_string(current_time - 1) + "; current trace: FORK, " + std::to_string(duration_intr) + "\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| PID |program name |partition number | size | state |\n";
+            system_status += "+------------------------------------------------------+\n";
+            system_status += "| " + std::to_string(child.PID) + " | " + child.program_name + " | "
+                             + std::to_string(child.partition_number) + " | " + std::to_string(child.size) + " | running |\n";
+            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | "
+                             + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | waiting |\n";
+            system_status += "+------------------------------------------------------+\n";
 
 
 
@@ -127,22 +125,58 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             execution += intr;
 
             ///////////////////////////////////////////////////////////////////////////////////////////
+            // EXEC ISR implementation
+
+            // Step 1: Get size of the new executable from external_files
+            unsigned int program_size = get_size(program_name, external_files);
+
+            execution += std::to_string(current_time) + ", " + std::to_string(duration_intr) + ", Program is " + std::to_string(program_size) + " Mb large\n";
+            current_time += duration_intr;
+
+            // Step 2: Calculate loading time (15 ms per MB)
+            int loading_time = program_size * 15;
+            execution += std::to_string(current_time) + ", " + std::to_string(loading_time) + ", loading program into memory\n";
+            current_time += loading_time;
+
+            // Step 3: Mark partition as occupied (random time 1-10ms, let's use 3)
+            execution += std::to_string(current_time) + ", 3, marking partition as occupied\n";
+            current_time += 3;
+
+            // Step 4: Update PCB (random time 1-10ms, let's use 6)
+            // Free old memory if process already had a partition
+            if(current.partition_number != -1) {
+                free_memory(&current);
+            }
+
+            // Update PCB with new program info
             current.program_name = program_name;
+            current.size = program_size;
+
+            // Allocate memory for the new program
+            if(!allocate_memory(&current)) {
+                std::cerr << "ERROR! Memory allocation failed for " << program_name << std::endl;
+            }
+
+            execution += std::to_string(current_time) + ", 6, updating PCB\n";
+            current_time += 6;
+
+            execution += std::to_string(current_time) + ", 0, scheduler called\n";
+
+            execution += std::to_string(current_time) + ", 1, IRET\n";
+            current_time += 1;
 
             // Output system status
-            system_status += "time: " + std::to_string(current_time) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
+            system_status += "time: " + std::to_string(current_time - 1) + "; current trace: EXEC " + program_name + ", " + std::to_string(duration_intr) + "\n";
             system_status += "+------------------------------------------------------+\n";
             system_status += "| PID |program name |partition number | size | state |\n";
             system_status += "+------------------------------------------------------+\n";
-            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | " 
+            system_status += "| " + std::to_string(current.PID) + " | " + current.program_name + " | "
                              + std::to_string(current.partition_number) + " | " + std::to_string(current.size) + " | running |\n";
             system_status += "+------------------------------------------------------+\n";
 
-
-
             ///////////////////////////////////////////////////////////////////////////////////////////
 
-
+            // Now execute the new program
             std::ifstream exec_trace_file(program_name + ".txt");
 
             std::vector<std::string> exec_traces;
@@ -159,7 +193,6 @@ std::tuple<std::string, std::string, int> simulate_trace(std::vector<std::string
             ///////////////////////////////////////////////////////////////////////////////////////////
 
             break; 
-
         }
     }
 
@@ -187,7 +220,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<PCB> wait_queue;
-    
+
     //Converting the trace file into a vector of strings.
     std::vector<std::string> trace_file;
     std::string trace;
